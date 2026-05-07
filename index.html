@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpMo Race Analytics</title>
+  <style>
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --surface2: #21262d;
+      --border:   #30363d;
+      --text:     #c9d1d9;
+      --muted:    #8b949e;
+      --accent:   #58a6ff;
+      --green:    #3fb950;
+      --red:      #f85149;
+      --opmo-bg:  #0e1c2e;
+      --opmo-hi:  #1f6feb;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; min-height: 100vh; }
+
+    /* ── Header ── */
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 12px; }
+    .logo { font-size: 20px; font-weight: 700; color: #e6edf3; letter-spacing: -0.5px; }
+    .logo span { color: var(--opmo-hi); }
+    header p { color: var(--muted); font-size: 12px; }
+
+    /* ── Controls ── */
+    .controls { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 24px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    select { background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 13px; cursor: pointer; max-width: 420px; }
+    select:focus { outline: none; border-color: var(--accent); }
+    .btn { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+    .btn:hover { color: var(--text); border-color: var(--muted); }
+    .btn.active { background: var(--opmo-hi); color: #fff; border-color: var(--opmo-hi); }
+
+    /* ── Race meta cards ── */
+    .meta-bar { padding: 16px 24px 0; display: flex; gap: 12px; flex-wrap: wrap; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; }
+    .card .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+    .card .val { font-size: 15px; font-weight: 600; color: #e6edf3; }
+    .card .val.sm { font-size: 13px; }
+
+    /* ── Main content ── */
+    .content { padding: 16px 24px 32px; }
+    .section-hd { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin: 0 0 10px; }
+
+    /* ── Table ── */
+    .tbl-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; background: var(--surface); }
+    thead th { background: var(--surface2); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; padding: 8px 12px; text-align: left; white-space: nowrap; cursor: pointer; user-select: none; }
+    thead th:hover { color: var(--text); }
+    thead th.sorted-asc::after { content: ' ↑'; color: var(--accent); }
+    thead th.sorted-desc::after { content: ' ↓'; color: var(--accent); }
+    td { padding: 8px 12px; border-top: 1px solid var(--border); vertical-align: middle; white-space: nowrap; }
+
+    /* Team rows */
+    tr.team { background: var(--surface2); cursor: pointer; }
+    tr.team:hover { background: #2d333b; }
+    tr.team.opmo { background: var(--opmo-bg); }
+    tr.team.opmo:hover { background: #1a2e44; }
+    tr.team td.pos-cell { border-left: 3px solid transparent; }
+    tr.team.opmo td.pos-cell { border-left: 3px solid var(--opmo-hi); }
+
+    /* Driver rows */
+    tr.driver { display: none; }
+    tr.driver.open { display: table-row; }
+    tr.driver td { background: var(--bg); font-size: 13px; }
+    tr.driver.opmo td { background: #080e17; }
+
+    /* ── Badges & deltas ── */
+    .pos { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 24px; border-radius: 4px; font-weight: 700; font-size: 12px; padding: 0 6px; background: var(--surface2); }
+    .pos.p1 { background: #b8860b; color: #000; }
+    .pos.p2 { background: #71787f; color: #fff; }
+    .pos.p3 { background: #9c5b2a; color: #fff; }
+    .pos.opmo-pos { background: var(--opmo-hi); color: #fff; }
+
+    .delta { font-weight: 600; font-size: 12px; }
+    .delta.up { color: var(--green); }
+    .delta.dn { color: var(--red); }
+    .delta.eq { color: var(--muted); }
+
+    .tt { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 12px; }
+    .muted { color: var(--muted); }
+    .driver-name { padding-left: 28px !important; color: var(--muted); }
+    .expand-icon { font-size: 9px; margin-right: 6px; }
+    .team-name { font-weight: 600; }
+    .opmo-badge { background: var(--opmo-hi); color: #fff; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 3px; margin-left: 6px; vertical-align: middle; }
+
+    /* ── States ── */
+    .loading { text-align: center; padding: 48px; color: var(--muted); }
+    .err { background: #2d1414; border: 1px solid #5c2323; border-radius: 8px; padding: 12px 16px; color: var(--red); margin: 16px 0; }
+    .empty { color: var(--muted); padding: 24px 0; text-align: center; font-size: 13px; }
+
+    /* ── History-specific ── */
+    tr.hist-spacer td { background: var(--bg); height: 6px; border: none; }
+    tr.hist-driver:first-of-type td { border-top: 2px solid var(--border); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo"><span>OpMo</span> Race Analytics</div>
+    <p>iRacing endurance results &amp; driver history</p>
+  </div>
+</header>
+
+<div class="controls">
+  <select id="race-sel"><option value="">Loading races…</option></select>
+  <button class="btn" id="btn-opmo">OpMo Only</button>
+  <button class="btn" id="btn-history">Driver History</button>
+</div>
+
+<div class="meta-bar" id="meta-bar"></div>
+<div class="content" id="content"><div class="loading">Loading…</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" crossorigin="anonymous"></script>
+<script>
+// ── Config ────────────────────────────────────────────────────────────────
+const OPMO_RE = /opmo/i;
+
+// ── State ─────────────────────────────────────────────────────────────────
+let races      = {};   // filename → {meta, teams}
+let manifest   = [];
+let currentFile = null;
+let opmoOnly   = false;
+let showHistory = false;
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function parseTime(s) {
+  if (!s || !s.trim()) return null;
+  const t = s.trim();
+  if (t === '00.000' || t === '00:00.000') return null;
+  const parts = t.split(':');
+  if (parts.length === 2) return parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
+  return parseFloat(t) || null;
+}
+
+function fmtTime(sec) {
+  if (sec === null || isNaN(sec) || sec <= 0) return '—';
+  const m = Math.floor(sec / 60);
+  const s = (sec % 60).toFixed(3).padStart(6, '0');
+  return `${m}:${s}`;
+}
+
+function safeId(tid) { return 't' + String(tid).replace(/\D/g, ''); }
+
+function posBadge(pos, isOpmo) {
+  const p = parseInt(pos);
+  if (isNaN(p)) return `<span class="pos">${pos}</span>`;
+  const cls = p === 1 ? 'p1' : p === 2 ? 'p2' : p === 3 ? 'p3' : isOpmo ? 'opmo-pos' : '';
+  return `<span class="pos ${cls}">P${p}</span>`;
+}
+
+function iRatingDelta(oldR, newR) {
+  const o = parseInt(oldR), n = parseInt(newR);
+  if (isNaN(o) || isNaN(n)) return '<span class="delta eq">—</span>';
+  const d = n - o;
+  const cls = d > 0 ? 'up' : d < 0 ? 'dn' : 'eq';
+  const sign = d > 0 ? '+' : '';
+  return `<span class="delta ${cls}">${sign}${d}</span>`;
+}
+
+function raceLabelFrom(data) {
+  const m = data.meta;
+  const track = (m['Track'] || '').replace(/\s*-\s*Gesamtstrecke.*/, '').trim() || 'Unknown';
+  const date = m['Start Time'] ? new Date(m['Start Time']).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '';
+  return `${track} — ${date}`;
+}
+
+// ── CSV parsing ───────────────────────────────────────────────────────────
+function parseEventCSV(text) {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+
+  let blankIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (i > 0 && lines[i].replace(/[",\s]/g, '') === '') { blankIdx = i; break; }
+  }
+  if (blankIdx === -1) throw new Error('Missing section separator in CSV');
+
+  const metaParsed   = Papa.parse(lines.slice(0, blankIdx).join('\n'), { header: true, skipEmptyLines: true });
+  const resultParsed = Papa.parse(lines.slice(blankIdx + 1).join('\n'), { header: true, skipEmptyLines: true });
+
+  const meta = metaParsed.data[0] || {};
+  const rows = resultParsed.data.filter(r => r['Team ID']);
+
+  // Group into teams (team-summary row = Cust ID matches Team ID)
+  const teamMap = new Map();
+  for (const row of rows) {
+    const tid = row['Team ID'];
+    if (!teamMap.has(tid)) teamMap.set(tid, { summary: null, drivers: [] });
+    const g = teamMap.get(tid);
+    if (row['Cust ID'] === tid) g.summary = row;
+    else g.drivers.push(row);
+  }
+
+  const teams = [...teamMap.values()]
+    .filter(t => t.summary)
+    .sort((a, b) => parseInt(a.summary['Fin Pos']) - parseInt(b.summary['Fin Pos']));
+
+  return { meta, teams };
+}
+
+// ── Fetch helpers ─────────────────────────────────────────────────────────
+async function fetchText(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
+  // Use windows-1252 to handle iRacing's CSV encoding (fixes Nürburgring etc.)
+  const buf = await r.arrayBuffer();
+  return new TextDecoder('windows-1252').decode(buf);
+}
+
+async function loadRace(filename) {
+  if (races[filename]) return races[filename];
+  const text = await fetchText(`data/${filename}`);
+  races[filename] = parseEventCSV(text);
+  return races[filename];
+}
+
+// ── Rendering: Race view ──────────────────────────────────────────────────
+function renderMeta(data) {
+  const m = data.meta;
+  const date = m['Start Time'] ? new Date(m['Start Time']).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '—';
+  const track = m['Track'] || '—';
+  const series = m['Series'] || m['Series Name'] || '—';
+  const sof = m['Strength of Field'] || '—';
+  const entries = data.teams.length;
+  const opmoCount = data.teams.filter(t => OPMO_RE.test(t.summary['Name'])).length;
+
+  document.getElementById('meta-bar').innerHTML = `
+    <div class="card"><div class="lbl">Track</div><div class="val sm">${track}</div></div>
+    <div class="card"><div class="lbl">Date</div><div class="val sm">${date}</div></div>
+    <div class="card"><div class="lbl">Series</div><div class="val sm">${series}</div></div>
+    <div class="card"><div class="lbl">SoF</div><div class="val">${sof}</div></div>
+    <div class="card"><div class="lbl">Teams</div><div class="val">${entries}</div></div>
+    ${opmoCount ? `<div class="card"><div class="lbl">OpMo Entries</div><div class="val" style="color:var(--opmo-hi)">${opmoCount}</div></div>` : ''}
+  `;
+}
+
+function renderRaceView(data) {
+  renderMeta(data);
+  const visibleTeams = opmoOnly
+    ? data.teams.filter(t => OPMO_RE.test(t.summary['Name']))
+    : data.teams;
+
+  if (visibleTeams.length === 0) {
+    document.getElementById('content').innerHTML = '<div class="empty">No OpMo teams found in this race.</div>';
+    return;
+  }
+
+  let html = `
+    <div class="tbl-wrap">
+    <table>
+      <thead><tr>
+        <th data-col="fin">Pos</th>
+        <th data-col="name">Team</th>
+        <th data-col="car">Car</th>
+        <th data-col="start">Start</th>
+        <th data-col="laps">Laps</th>
+        <th data-col="inc">Inc</th>
+        <th data-col="best">Best Lap</th>
+        <th data-col="avg">Avg Lap</th>
+        <th data-col="gap">Gap</th>
+      </tr></thead>
+      <tbody>
+  `;
+
+  for (const team of visibleTeams) {
+    const s = team.summary;
+    const tid = safeId(s['Team ID']);
+    const isOpmo = OPMO_RE.test(s['Name']);
+    const tClass = `team${isOpmo ? ' opmo' : ''}`;
+    const badge = isOpmo ? '<span class="opmo-badge">OpMo</span>' : '';
+
+    html += `
+      <tr class="${tClass}" onclick="toggleTeam('${tid}')">
+        <td class="pos-cell">${posBadge(s['Fin Pos'], isOpmo)}</td>
+        <td><span class="expand-icon" id="exp-${tid}">▶</span><span class="team-name">${s['Name']}</span>${badge}</td>
+        <td class="muted">${s['Car'] || '—'}</td>
+        <td class="muted">${s['Start Pos'] || '—'}</td>
+        <td>${s['Laps Comp'] || '—'}</td>
+        <td>${s['Inc'] || '0'}</td>
+        <td class="tt">${fmtTime(parseTime(s['Fastest Lap Time']))}</td>
+        <td class="tt">${fmtTime(parseTime(s['Average Lap Time']))}</td>
+        <td class="muted">${s['Interval'] || '—'}</td>
+      </tr>
+    `;
+
+    for (const d of team.drivers) {
+      const dClass = `driver${isOpmo ? ' opmo' : ''}`;
+      html += `
+        <tr class="${dClass}" data-team="${tid}">
+          <td></td>
+          <td class="driver-name">👤 ${d['Name'] || '—'}</td>
+          <td></td>
+          <td class="muted">${d['Start Pos'] || '—'}</td>
+          <td>${d['Laps Comp'] || '—'}</td>
+          <td>${d['Inc'] || '0'}</td>
+          <td class="tt">${fmtTime(parseTime(d['Fastest Lap Time']))}</td>
+          <td class="tt">${fmtTime(parseTime(d['Average Lap Time']))}</td>
+          <td>${iRatingDelta(d['Old iRating'], d['New iRating'])}</td>
+        </tr>
+      `;
+    }
+  }
+
+  html += '</tbody></table></div>';
+  document.getElementById('content').innerHTML = html;
+
+  // Auto-expand OpMo teams
+  for (const team of visibleTeams) {
+    if (OPMO_RE.test(team.summary['Name'])) {
+      toggleTeam(safeId(team.summary['Team ID']), true);
+    }
+  }
+}
+
+function toggleTeam(tid, forceOpen) {
+  const rows = document.querySelectorAll(`[data-team="${tid}"]`);
+  const icon = document.getElementById(`exp-${tid}`);
+  const isOpen = rows.length > 0 && rows[0].classList.contains('open');
+  const open = forceOpen !== undefined ? forceOpen : !isOpen;
+  rows.forEach(r => r.classList.toggle('open', open));
+  if (icon) icon.textContent = open ? '▼' : '▶';
+}
+
+// ── Rendering: History view ───────────────────────────────────────────────
+function renderHistoryView() {
+  document.getElementById('meta-bar').innerHTML = '';
+
+  // Aggregate OpMo driver appearances across all loaded races
+  const driverMap = new Map(); // name → [{raceLabel, team, finPos, laps, avg, best, inc, iOld, iNew}]
+
+  for (const [filename, data] of Object.entries(races)) {
+    const label = raceLabelFrom(data);
+    for (const team of data.teams) {
+      if (!OPMO_RE.test(team.summary['Name'])) continue;
+      for (const d of team.drivers) {
+        const name = d['Name'];
+        if (!name) continue;
+        if (!driverMap.has(name)) driverMap.set(name, []);
+        driverMap.get(name).push({
+          label,
+          team:   team.summary['Name'],
+          finPos: parseInt(team.summary['Fin Pos']) || 0,
+          laps:   parseInt(d['Laps Comp']) || 0,
+          avg:    parseTime(d['Average Lap Time']),
+          best:   parseTime(d['Fastest Lap Time']),
+          inc:    parseInt(d['Inc']) || 0,
+          iOld:   parseInt(d['Old iRating']),
+          iNew:   parseInt(d['New iRating']),
+        });
+      }
+    }
+  }
+
+  if (driverMap.size === 0) {
+    document.getElementById('content').innerHTML = '<div class="empty">No OpMo driver data found. Load at least one race first.</div>';
+    return;
+  }
+
+  // Sort drivers by name
+  const entries = [...driverMap.entries()].sort(([a], [b]) => a.localeCompare(b));
+
+  let html = `
+    <div class="section-hd">OpMo Driver History — all loaded races</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr>
+        <th>Driver</th>
+        <th>Race</th>
+        <th>Team</th>
+        <th>Fin</th>
+        <th>Laps</th>
+        <th>Avg Lap</th>
+        <th>Best Lap</th>
+        <th>Inc</th>
+        <th>iRating</th>
+        <th>Δ iR</th>
+      </tr></thead>
+      <tbody>
+  `;
+
+  for (const [name, apps] of entries) {
+    // Sort appearances by date (label sorts alphabetically by track, good enough)
+    for (let i = 0; i < apps.length; i++) {
+      const a = apps[i];
+      const dOld = isNaN(a.iOld) ? null : a.iOld;
+      const dNew = isNaN(a.iNew) ? null : a.iNew;
+      html += `<tr>
+        ${i === 0 ? `<td rowspan="${apps.length}" style="font-weight:600; border-right:1px solid var(--border); vertical-align:top; padding-top:10px">${name}</td>` : ''}
+        <td class="muted">${a.label}</td>
+        <td class="muted">${a.team}</td>
+        <td>${posBadge(a.finPos, true)}</td>
+        <td>${a.laps}</td>
+        <td class="tt">${fmtTime(a.avg)}</td>
+        <td class="tt">${fmtTime(a.best)}</td>
+        <td>${a.inc}</td>
+        <td class="muted">${dNew ?? '—'}</td>
+        <td>${dOld !== null && dNew !== null ? iRatingDelta(dOld, dNew) : '<span class="delta eq">—</span>'}</td>
+      </tr>`;
+    }
+    html += `<tr class="hist-spacer"><td colspan="10"></td></tr>`;
+  }
+
+  html += '</tbody></table></div>';
+  document.getElementById('content').innerHTML = html;
+}
+
+// ── Controls ──────────────────────────────────────────────────────────────
+document.getElementById('btn-opmo').addEventListener('click', function () {
+  opmoOnly = !opmoOnly;
+  this.classList.toggle('active', opmoOnly);
+  if (!showHistory && currentFile && races[currentFile]) renderRaceView(races[currentFile]);
+});
+
+document.getElementById('btn-history').addEventListener('click', function () {
+  showHistory = !showHistory;
+  this.classList.toggle('active', showHistory);
+  document.getElementById('btn-opmo').disabled = showHistory;
+  if (showHistory) {
+    renderHistoryView();
+  } else if (currentFile && races[currentFile]) {
+    renderRaceView(races[currentFile]);
+  }
+});
+
+document.getElementById('race-sel').addEventListener('change', async function () {
+  currentFile = this.value;
+  showHistory = false;
+  document.getElementById('btn-history').classList.remove('active');
+  document.getElementById('content').innerHTML = '<div class="loading">Loading race data…</div>';
+  document.getElementById('meta-bar').innerHTML = '';
+  try {
+    const data = await loadRace(currentFile);
+    renderRaceView(data);
+  } catch (e) {
+    document.getElementById('content').innerHTML = `<div class="err">Failed to load race: ${e.message}</div>`;
+  }
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const text = await fetchText('data/manifest.json');
+    manifest = JSON.parse(text);
+  } catch (e) {
+    document.getElementById('content').innerHTML = `<div class="err">Could not load data/manifest.json: ${e.message}</div>`;
+    return;
+  }
+
+  if (manifest.length === 0) {
+    document.getElementById('content').innerHTML = '<div class="empty">No races listed in manifest.json.</div>';
+    return;
+  }
+
+  const sel = document.getElementById('race-sel');
+  sel.innerHTML = manifest.map(f => `<option value="${f}">${f}</option>`).join('');
+  currentFile = manifest[0];
+
+  // Load all races in the background to populate history; show first race immediately
+  const loadAll = manifest.map(async f => {
+    try {
+      const data = await loadRace(f);
+      // Update option label once we have the parsed metadata
+      const opt = sel.querySelector(`option[value="${f}"]`);
+      if (opt) opt.textContent = raceLabelFrom(data);
+    } catch (_) {}
+  });
+
+  try {
+    const data = await loadRace(currentFile);
+    const opt = sel.querySelector(`option[value="${currentFile}"]`);
+    if (opt) opt.textContent = raceLabelFrom(data);
+    renderRaceView(data);
+  } catch (e) {
+    document.getElementById('content').innerHTML = `<div class="err">Failed to load first race: ${e.message}</div>`;
+  }
+
+  await Promise.allSettled(loadAll);
+}
+
+init();
+</script>
+</body>
+</html>

@@ -96,6 +96,38 @@
     /* ── History-specific ── */
     tr.hist-spacer td { background: var(--bg); height: 6px; border: none; }
     tr.hist-driver:first-of-type td { border-top: 2px solid var(--border); }
+
+    /* ── Claude panel ── */
+    .claude-fab { position: fixed; bottom: 24px; right: 24px; background: var(--opmo-hi); color: #fff; border: none; border-radius: 50px; padding: 12px 20px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.4); z-index: 100; display: flex; align-items: center; gap: 8px; }
+    .claude-fab:hover { background: #388bfd; }
+    .claude-panel { position: fixed; right: 0; top: 0; bottom: 0; width: 420px; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; z-index: 200; transform: translateX(100%); transition: transform .25s ease; }
+    .claude-panel.open { transform: translateX(0); }
+    .claude-panel-hd { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .claude-panel-hd h2 { font-size: 14px; font-weight: 600; color: #e6edf3; }
+    .claude-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1; padding: 0 4px; }
+    .claude-close:hover { color: var(--text); }
+    .claude-key-bar { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
+    .claude-key-bar input { flex: 1; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-size: 12px; font-family: monospace; }
+    .claude-key-bar input:focus { outline: none; border-color: var(--accent); }
+    .claude-key-bar .key-btn { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+    .claude-key-bar .key-btn.saved { color: var(--green); border-color: var(--green); }
+    .claude-ctx { padding: 6px 12px; background: var(--surface2); border-bottom: 1px solid var(--border); font-size: 11px; color: var(--muted); }
+    .claude-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .claude-msg { border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 1.55; max-width: 95%; }
+    .claude-msg.user { background: var(--opmo-hi); color: #fff; align-self: flex-end; }
+    .claude-msg.assistant { background: var(--surface2); color: var(--text); align-self: flex-start; white-space: pre-wrap; word-break: break-word; }
+    .claude-msg.err { background: #2d1414; color: var(--red); align-self: stretch; font-size: 12px; }
+    .claude-msg.thinking { color: var(--muted); font-style: italic; align-self: center; font-size: 12px; }
+    .claude-chips { padding: 0 12px 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .claude-chip { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 4px 10px; font-size: 11px; color: var(--muted); cursor: pointer; }
+    .claude-chip:hover { border-color: var(--accent); color: var(--text); }
+    .claude-input-bar { padding: 10px 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+    .claude-input-bar textarea { flex: 1; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-size: 13px; resize: none; height: 64px; font-family: inherit; }
+    .claude-input-bar textarea:focus { outline: none; border-color: var(--accent); }
+    .claude-send { background: var(--opmo-hi); color: #fff; border: none; border-radius: 6px; padding: 8px 14px; font-size: 13px; cursor: pointer; align-self: flex-end; }
+    .claude-send:hover { background: #388bfd; }
+    .claude-send:disabled { background: var(--surface2); color: var(--muted); cursor: not-allowed; }
+    @media (max-width: 480px) { .claude-panel { width: 100%; } }
   </style>
 </head>
 <body>
@@ -115,6 +147,36 @@
 
 <div class="meta-bar" id="meta-bar"></div>
 <div class="content" id="content"><div class="loading">Loading…</div></div>
+
+<!-- ── Claude side panel ── -->
+<button class="claude-fab" id="claude-fab">✦ Ask Claude</button>
+
+<div class="claude-panel" id="claude-panel">
+  <div class="claude-panel-hd">
+    <h2>✦ Ask Claude about this race</h2>
+    <button class="claude-close" id="claude-close">×</button>
+  </div>
+  <div class="claude-key-bar">
+    <input type="password" id="claude-key" placeholder="Paste your Anthropic API key (sk-ant-…)" />
+    <button class="key-btn" id="claude-key-save">Save</button>
+  </div>
+  <div class="claude-ctx" id="claude-ctx">No race loaded yet.</div>
+  <div class="claude-messages" id="claude-messages">
+    <div class="claude-msg thinking">Enter your API key above, then ask a question about the race data.</div>
+  </div>
+  <div class="claude-chips" id="claude-chips">
+    <span class="claude-chip" data-q="How did the OpMo teams perform compared to the rest of the field?">OpMo vs field</span>
+    <span class="claude-chip" data-q="Which OpMo driver had the best individual performance and why?">Best OpMo driver</span>
+    <span class="claude-chip" data-q="Compare the incident rates of OpMo drivers and identify who needs the most focus on clean driving.">Incident analysis</span>
+    <span class="claude-chip" data-q="What was the pace gap between OpMo and the race winner, and is it bridgeable?">Pace gap to winner</span>
+    <span class="claude-chip" data-q="Identify any drivers across all teams who ran particularly strong stints that we should watch.">Standout drivers</span>
+    <span class="claude-chip" data-q="Summarise the top 5 finishers and what gave them the edge.">Top 5 summary</span>
+  </div>
+  <div class="claude-input-bar">
+    <textarea id="claude-input" placeholder="Ask anything about this race…" rows="2"></textarea>
+    <button class="claude-send" id="claude-send" disabled>Send</button>
+  </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" crossorigin="anonymous"></script>
 <script>
@@ -482,6 +544,183 @@ async function init() {
 }
 
 init();
+
+// ── Claude integration ────────────────────────────────────────────────────
+
+const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
+const CLAUDE_MODEL = 'claude-sonnet-4-6';
+
+let claudeHistory = [];  // {role, content} pairs for multi-turn
+
+function buildRaceContext() {
+  if (!currentFile || !races[currentFile]) return null;
+  const { meta, teams } = races[currentFile];
+  const date = meta['Start Time'] ? new Date(meta['Start Time']).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '—';
+
+  let ctx = `RACE: ${meta['Track'] || '—'} | ${date} | SoF ${meta['Strength of Field'] || '—'} | ${teams.length} teams\n\n`;
+  ctx += `TEAM STANDINGS (Pos | Team | Car | Start | Laps | Inc | Best Lap | Avg Lap | Gap):\n`;
+
+  for (const t of teams) {
+    const s = t.summary;
+    const best = fmtTime(parseTime(s['Fastest Lap Time']));
+    const avg  = fmtTime(parseTime(s['Average Lap Time']));
+    const opmoMark = OPMO_RE.test(s['Name']) ? ' [OpMo]' : '';
+    ctx += `P${s['Fin Pos']} | ${s['Name']}${opmoMark} | ${s['Car']} | S${s['Start Pos']} | ${s['Laps Comp']} laps | ${s['Inc']} inc | ${best} | ${avg} | ${s['Interval'] || '—'}\n`;
+
+    if (t.drivers.length > 0) {
+      ctx += `  Drivers (Name | Start | Laps | Best | Avg | Inc | iRating Δ):\n`;
+      for (const d of t.drivers) {
+        const dBest = fmtTime(parseTime(d['Fastest Lap Time']));
+        const dAvg  = fmtTime(parseTime(d['Average Lap Time']));
+        const iOld = parseInt(d['Old iRating']), iNew = parseInt(d['New iRating']);
+        const deltaStr = (!isNaN(iOld) && !isNaN(iNew)) ? `${iNew - iOld > 0 ? '+' : ''}${iNew - iOld}` : '—';
+        ctx += `    ${d['Name']} | S${d['Start Pos']} | ${d['Laps Comp']} | ${dBest} | ${dAvg} | ${d['Inc']} inc | ${deltaStr} iR\n`;
+      }
+    }
+  }
+  return ctx;
+}
+
+function updateClaudeCtx() {
+  const ctx = buildRaceContext();
+  const el = document.getElementById('claude-ctx');
+  if (ctx) {
+    const opmoTeams = races[currentFile].teams.filter(t => OPMO_RE.test(t.summary['Name']));
+    el.textContent = `Context: ${races[currentFile].meta['Track'] || currentFile} — ${races[currentFile].teams.length} teams, ${opmoTeams.length} OpMo entries`;
+  } else {
+    el.textContent = 'No race loaded yet.';
+  }
+}
+
+function appendMessage(role, text) {
+  const msgs = document.getElementById('claude-messages');
+  // Clear the initial placeholder on first real message
+  const placeholder = msgs.querySelector('.thinking');
+  if (placeholder && claudeHistory.length === 0) placeholder.remove();
+
+  const div = document.createElement('div');
+  div.className = `claude-msg ${role}`;
+  div.textContent = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+async function sendToClaude(userText) {
+  const key = (document.getElementById('claude-key').value || '').trim();
+  if (!key) { appendMessage('err', 'Please enter your Anthropic API key above.'); return; }
+
+  const ctx = buildRaceContext();
+  if (!ctx) { appendMessage('err', 'Load a race first before asking questions.'); return; }
+
+  const send = document.getElementById('claude-send');
+  send.disabled = true;
+
+  appendMessage('user', userText);
+  claudeHistory.push({ role: 'user', content: userText });
+
+  const thinking = appendMessage('thinking', 'Claude is thinking…');
+
+  const systemPrompt = `You are a concise iRacing analyst for Team OpMo. You have been given structured race result data. Answer questions clearly and briefly. Focus on actionable insights. Use lap times in M:SS.mmm format. Teams marked [OpMo] are the user's own team entries.`;
+
+  // First turn injects race context as the initial user message
+  const messages = claudeHistory.length === 1
+    ? [{ role: 'user', content: `Race data:\n\`\`\`\n${ctx}\n\`\`\`\n\nQuestion: ${userText}` }]
+    : claudeHistory.map((m, i) => {
+        if (i === 0) return { role: 'user', content: `Race data:\n\`\`\`\n${ctx}\n\`\`\`\n\nQuestion: ${m.content}` };
+        return m;
+      });
+
+  try {
+    const res = await fetch(CLAUDE_API, {
+      method: 'POST',
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'anthropic-dangerous-request-proxy': 'true',   // required for browser CORS
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages,
+      }),
+    });
+
+    thinking.remove();
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: { message: res.statusText } }));
+      const msg = err?.error?.message || res.statusText;
+      appendMessage('err', `API error (${res.status}): ${msg}`);
+      claudeHistory.pop();
+    } else {
+      const data = await res.json();
+      const reply = data.content?.[0]?.text || '(empty response)';
+      appendMessage('assistant', reply);
+      claudeHistory.push({ role: 'assistant', content: reply });
+    }
+  } catch (e) {
+    thinking.remove();
+    if (e.message.includes('NetworkError') || e.message.includes('Failed to fetch')) {
+      appendMessage('err', 'CORS error: the Anthropic API blocked the browser request. This is a known limitation of static sites. As a workaround, copy this context and paste it into claude.ai manually.');
+    } else {
+      appendMessage('err', `Error: ${e.message}`);
+    }
+    claudeHistory.pop();
+  } finally {
+    send.disabled = false;
+  }
+}
+
+// API key persistence
+const keyInput = document.getElementById('claude-key');
+const saveBtn  = document.getElementById('claude-key-save');
+const savedKey = localStorage.getItem('opmo_claude_key');
+if (savedKey) { keyInput.value = savedKey; saveBtn.classList.add('saved'); saveBtn.textContent = 'Saved ✓'; }
+
+saveBtn.addEventListener('click', () => {
+  const k = keyInput.value.trim();
+  if (k) {
+    localStorage.setItem('opmo_claude_key', k);
+    saveBtn.classList.add('saved');
+    saveBtn.textContent = 'Saved ✓';
+  } else {
+    localStorage.removeItem('opmo_claude_key');
+    saveBtn.classList.remove('saved');
+    saveBtn.textContent = 'Save';
+  }
+});
+
+// Panel open/close
+document.getElementById('claude-fab').addEventListener('click', () => {
+  document.getElementById('claude-panel').classList.add('open');
+  updateClaudeCtx();
+});
+document.getElementById('claude-close').addEventListener('click', () => {
+  document.getElementById('claude-panel').classList.remove('open');
+});
+
+// Send button
+document.getElementById('claude-send').disabled = false;
+document.getElementById('claude-send').addEventListener('click', () => {
+  const ta = document.getElementById('claude-input');
+  const q = ta.value.trim();
+  if (!q) return;
+  ta.value = '';
+  sendToClaude(q);
+});
+document.getElementById('claude-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('claude-send').click(); }
+});
+
+// Suggestion chips
+document.getElementById('claude-chips').addEventListener('click', e => {
+  const chip = e.target.closest('.claude-chip');
+  if (!chip) return;
+  sendToClaude(chip.dataset.q);
+});
 </script>
 </body>
 </html>

@@ -97,6 +97,38 @@
     tr.hist-spacer td { background: var(--bg); height: 6px; border: none; }
     tr.hist-driver:first-of-type td { border-top: 2px solid var(--border); }
 
+    /* ── Export modal ── */
+    .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 300; align-items: center; justify-content: center; }
+    .modal-backdrop.open { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0; width: 420px; max-width: calc(100vw - 32px); max-height: 80vh; display: flex; flex-direction: column; }
+    .modal-hd { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .modal-hd h3 { font-size: 15px; font-weight: 600; color: #e6edf3; }
+    .modal-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1; }
+    .modal-close:hover { color: var(--text); }
+    .modal-body { padding: 16px 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+    .modal-body p { font-size: 12px; color: var(--muted); }
+    .race-check-list { display: flex; flex-direction: column; gap: 6px; }
+    .race-check { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+    .race-check:hover { border-color: var(--accent); }
+    .race-check input[type=checkbox] { accent-color: var(--opmo-hi); width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; }
+    .race-check label { font-size: 13px; cursor: pointer; flex: 1; }
+    .race-check .rc-sub { font-size: 11px; color: var(--muted); }
+    .modal-sel-all { display: flex; gap: 8px; }
+    .modal-sel-all button { background: none; border: none; color: var(--accent); font-size: 12px; cursor: pointer; padding: 0; }
+    .modal-sel-all button:hover { text-decoration: underline; }
+    .modal-ft { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+    .modal-ft .btn-cancel { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 8px 18px; font-size: 13px; cursor: pointer; }
+    .modal-ft .btn-cancel:hover { color: var(--text); }
+    .modal-ft .btn-export { background: var(--opmo-hi); color: #fff; border: none; border-radius: 6px; padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .modal-ft .btn-export:hover { background: #388bfd; }
+    .modal-ft .btn-export:disabled { background: var(--surface2); color: var(--muted); cursor: not-allowed; }
+
+    /* ── Upload drop zone ── */
+    .upload-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; color: var(--muted); font-size: 13px; transition: border-color .2s, background .2s; }
+    .upload-zone:hover, .upload-zone.drag { border-color: var(--opmo-hi); background: rgba(31,111,235,.06); color: var(--text); }
+    .upload-zone input[type=file] { display: none; }
+    .upload-note { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
     /* ── Claude panel ── */
     .claude-fab { position: fixed; bottom: 24px; right: 24px; background: var(--opmo-hi); color: #fff; border: none; border-radius: 50px; padding: 12px 20px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.4); z-index: 100; display: flex; align-items: center; gap: 8px; }
     .claude-fab:hover { background: #388bfd; }
@@ -144,6 +176,51 @@
   <button class="btn" id="btn-opmo">OpMo Only</button>
   <button class="btn" id="btn-history">Driver History</button>
   <button class="btn" id="btn-export">⬇ Export OpMo CSV</button>
+  <button class="btn" id="btn-upload" style="margin-left:auto">+ Add Race</button>
+</div>
+
+<!-- ── Export modal ── -->
+<div class="modal-backdrop" id="export-modal">
+  <div class="modal">
+    <div class="modal-hd">
+      <h3>⬇ Export OpMo CSV</h3>
+      <button class="modal-close" id="export-modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <p>Select which races to include in the export. One row per driver per race.</p>
+      <div class="modal-sel-all">
+        <button id="sel-all">Select all</button>
+        <button id="sel-none">Deselect all</button>
+      </div>
+      <div class="race-check-list" id="race-check-list"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" id="export-cancel">Cancel</button>
+      <button class="btn-export" id="export-confirm">Export</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Upload modal ── -->
+<div class="modal-backdrop" id="upload-modal">
+  <div class="modal">
+    <div class="modal-hd">
+      <h3>+ Add Race Results</h3>
+      <button class="modal-close" id="upload-modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <p>Load iRacing event result CSVs directly in the browser. Files are not uploaded anywhere — they are read locally only.</p>
+      <label class="upload-zone" id="upload-zone">
+        <input type="file" id="upload-input" accept=".csv" multiple />
+        <div>Click to browse or drag &amp; drop CSV files here</div>
+        <div class="upload-note">Accepts multiple files at once (eventresult_*.csv)</div>
+      </label>
+      <div id="upload-status" style="font-size:12px; color:var(--muted); margin-top:4px;"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-cancel" id="upload-done">Done</button>
+    </div>
+  </div>
 </div>
 
 <div class="meta-bar" id="meta-bar"></div>
@@ -554,73 +631,231 @@ function csvCell(v) {
     ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-function exportOpmoCSV() {
-  if (!currentFile || !races[currentFile]) {
-    alert('Load a race first.');
-    return;
-  }
-  const { meta, teams } = races[currentFile];
-  const opmoTeams = teams.filter(t => OPMO_RE.test(t.summary['Name']));
-  if (opmoTeams.length === 0) {
-    alert('No OpMo teams found in this race.');
-    return;
-  }
+const EXPORT_HEADERS = [
+  'Race Date', 'Track', 'Series', 'SoF',
+  'Team', 'Car', 'Fin Pos', 'Start Pos',
+  'Driver', 'Laps Comp', 'Avg Lap Time', 'Best Lap Time',
+  'Fast Lap #', 'Incidents', 'Laps Led',
+  'Old iRating', 'New iRating', 'iRating Delta',
+  'Old License', 'New License', 'Points',
+];
 
-  const track  = meta['Track'] || '';
+function driverRowCells(meta, teamSummary, driver) {
+  const s = teamSummary;
+  const d = driver;
   const date   = meta['Start Time'] ? new Date(meta['Start Time']).toISOString().slice(0, 10) : '';
+  const track  = meta['Track'] || '';
   const series = meta['Series'] || '';
   const sof    = meta['Strength of Field'] || '';
-
-  const headers = [
-    'Race Date', 'Track', 'Series', 'SoF',
-    'Team', 'Car', 'Fin Pos', 'Start Pos',
-    'Driver', 'Laps Comp', 'Avg Lap Time', 'Best Lap Time',
-    'Fast Lap #', 'Incidents', 'Laps Led',
-    'Old iRating', 'New iRating', 'iRating Delta',
-    'Old License', 'New License', 'Points',
+  const iOld   = parseInt(d['Old iRating']);
+  const iNew   = parseInt(d['New iRating']);
+  const delta  = (!isNaN(iOld) && !isNaN(iNew)) ? iNew - iOld : '';
+  const oldLic = (d['Old License Level'] && d['Old License Sub-Level'])
+    ? `${d['Old License Level']}.${d['Old License Sub-Level']}` : '';
+  const newLic = (d['New License Level'] && d['New License Sub-Level'])
+    ? `${d['New License Level']}.${d['New License Sub-Level']}` : '';
+  return [
+    date, track, series, sof,
+    s['Name'], s['Car'], s['Fin Pos'], s['Start Pos'],
+    d['Name'], d['Laps Comp'],
+    fmtTime(parseTime(d['Average Lap Time'])),
+    fmtTime(parseTime(d['Fastest Lap Time'])),
+    d['Fast Lap#'] || '',
+    d['Inc'] || '0',
+    d['Laps Led'] || '0',
+    isNaN(iOld) ? '' : iOld,
+    isNaN(iNew) ? '' : iNew,
+    delta, oldLic, newLic,
+    d['Pts'] || '',
   ];
+}
 
-  const rows = [headers.map(csvCell).join(',')];
-
-  for (const team of opmoTeams) {
-    const s = team.summary;
-    for (const d of team.drivers) {
-      const iOld = parseInt(d['Old iRating']);
-      const iNew = parseInt(d['New iRating']);
-      const delta = (!isNaN(iOld) && !isNaN(iNew)) ? iNew - iOld : '';
-
-      const oldLic = d['Old License Level'] && d['Old License Sub-Level']
-        ? `${d['Old License Level']}.${d['Old License Sub-Level']}` : '';
-      const newLic = d['New License Level'] && d['New License Sub-Level']
-        ? `${d['New License Level']}.${d['New License Sub-Level']}` : '';
-
-      rows.push([
-        date, track, series, sof,
-        s['Name'], s['Car'], s['Fin Pos'], s['Start Pos'],
-        d['Name'], d['Laps Comp'],
-        fmtTime(parseTime(d['Average Lap Time'])),
-        fmtTime(parseTime(d['Fastest Lap Time'])),
-        d['Fast Lap#'] || '',
-        d['Inc'] || '0',
-        d['Laps Led'] || '0',
-        isNaN(iOld) ? '' : iOld,
-        isNaN(iNew) ? '' : iNew,
-        delta,
-        oldLic, newLic,
-        d['Pts'] || '',
-      ].map(csvCell).join(','));
+function buildCSV(filenames) {
+  const rows = [EXPORT_HEADERS.map(csvCell).join(',')];
+  // Sort races by date
+  const sorted = filenames
+    .filter(f => races[f])
+    .sort((a, b) => {
+      const da = races[a].meta['Start Time'] || '';
+      const db = races[b].meta['Start Time'] || '';
+      return da.localeCompare(db);
+    });
+  for (const f of sorted) {
+    const { meta, teams } = races[f];
+    const opmoTeams = teams.filter(t => OPMO_RE.test(t.summary['Name']));
+    for (const team of opmoTeams) {
+      for (const d of team.drivers) {
+        rows.push(driverRowCells(meta, team.summary, d).map(csvCell).join(','));
+      }
     }
   }
+  return rows.join('\n');
+}
 
-  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
-  const a    = document.createElement('a');
-  a.href     = URL.createObjectURL(blob);
-  a.download = `opmo_${date}_${track.replace(/[^a-z0-9]/gi, '_').slice(0, 40)}.csv`;
+function triggerDownload(csvText, filename) {
+  const blob = new Blob([csvText], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(a.href);
 }
 
-document.getElementById('btn-export').addEventListener('click', exportOpmoCSV);
+// ── Export modal ──────────────────────────────────────────────────────────
+
+function openExportModal() {
+  const list = document.getElementById('race-check-list');
+  list.innerHTML = '';
+
+  for (const f of manifest) {
+    const data = races[f];
+    const label = data ? raceLabelFrom(data) : f;
+    const opmoCount = data
+      ? data.teams.filter(t => OPMO_RE.test(t.summary['Name'])).length
+      : '?';
+    const sub = opmoCount === 0 ? 'no OpMo entries' : `${opmoCount} OpMo team${opmoCount > 1 ? 's' : ''}`;
+
+    const row = document.createElement('label');
+    row.className = 'race-check';
+    row.innerHTML = `
+      <input type="checkbox" value="${f}" ${opmoCount > 0 ? 'checked' : ''} />
+      <span><div>${label}</div><div class="rc-sub">${sub}</div></span>
+    `;
+    list.appendChild(row);
+  }
+
+  updateExportBtn();
+  document.getElementById('export-modal').classList.add('open');
+}
+
+function updateExportBtn() {
+  const checked = document.querySelectorAll('#race-check-list input:checked');
+  const btn = document.getElementById('export-confirm');
+  btn.disabled = checked.length === 0;
+  btn.textContent = checked.length > 1 ? `Export ${checked.length} races` : 'Export';
+}
+
+document.getElementById('race-check-list').addEventListener('change', updateExportBtn);
+
+document.getElementById('sel-all').addEventListener('click', () => {
+  document.querySelectorAll('#race-check-list input').forEach(cb => cb.checked = true);
+  updateExportBtn();
+});
+document.getElementById('sel-none').addEventListener('click', () => {
+  document.querySelectorAll('#race-check-list input').forEach(cb => cb.checked = false);
+  updateExportBtn();
+});
+
+function closeExportModal() { document.getElementById('export-modal').classList.remove('open'); }
+document.getElementById('export-modal-close').addEventListener('click', closeExportModal);
+document.getElementById('export-cancel').addEventListener('click', closeExportModal);
+document.getElementById('export-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeExportModal();
+});
+
+document.getElementById('export-confirm').addEventListener('click', async () => {
+  const checked = [...document.querySelectorAll('#race-check-list input:checked')].map(cb => cb.value);
+  if (checked.length === 0) return;
+
+  const btn = document.getElementById('export-confirm');
+  btn.textContent = 'Loading…';
+  btn.disabled = true;
+
+  // Ensure all selected races are loaded
+  await Promise.allSettled(checked.map(f => loadRace(f)));
+
+  const csv = buildCSV(checked);
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const suffix  = checked.length === 1
+    ? (races[checked[0]]?.meta['Track'] || checked[0]).replace(/[^a-z0-9]/gi, '_').slice(0, 30)
+    : `${checked.length}_races`;
+  triggerDownload(csv, `opmo_${dateStr}_${suffix}.csv`);
+
+  closeExportModal();
+});
+
+document.getElementById('btn-export').addEventListener('click', () => {
+  if (manifest.length === 0) { alert('No races loaded.'); return; }
+  openExportModal();
+});
+
+// ── File upload (local, no server) ───────────────────────────────────────
+
+function openUploadModal() { document.getElementById('upload-modal').classList.add('open'); }
+function closeUploadModal() { document.getElementById('upload-modal').classList.remove('open'); }
+document.getElementById('upload-modal-close').addEventListener('click', closeUploadModal);
+document.getElementById('upload-done').addEventListener('click', closeUploadModal);
+document.getElementById('upload-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeUploadModal();
+});
+
+const uploadZone = document.getElementById('upload-zone');
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag');
+  handleFiles([...e.dataTransfer.files]);
+});
+
+document.getElementById('upload-input').addEventListener('change', function () {
+  handleFiles([...this.files]);
+  this.value = '';
+});
+
+async function handleFiles(files) {
+  const status = document.getElementById('upload-status');
+  const csvFiles = files.filter(f => f.name.toLowerCase().endsWith('.csv'));
+  if (csvFiles.length === 0) { status.textContent = 'No CSV files found.'; return; }
+
+  status.textContent = `Loading ${csvFiles.length} file${csvFiles.length > 1 ? 's' : ''}…`;
+  let added = 0, skipped = 0, failed = 0;
+
+  for (const file of csvFiles) {
+    try {
+      const text = await file.text();
+      const data = parseEventCSV(text);
+      const key  = file.name;
+
+      // Add to manifest if not already present
+      if (!manifest.includes(key)) {
+        manifest.push(key);
+        races[key] = data;
+        const sel = document.getElementById('race-sel');
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = raceLabelFrom(data);
+        sel.appendChild(opt);
+        added++;
+      } else {
+        // Overwrite cached data (re-uploaded)
+        races[key] = data;
+        const opt = document.querySelector(`#race-sel option[value="${key}"]`);
+        if (opt) opt.textContent = raceLabelFrom(data);
+        skipped++;
+      }
+    } catch (e) {
+      console.error(file.name, e);
+      failed++;
+    }
+  }
+
+  const parts = [];
+  if (added)   parts.push(`${added} added`);
+  if (skipped) parts.push(`${skipped} refreshed`);
+  if (failed)  parts.push(`${failed} failed`);
+  status.textContent = parts.join(', ') + '.';
+
+  // If no race is currently shown, load the first newly added one
+  if (added > 0 && (!currentFile || !races[currentFile])) {
+    const newFile = manifest[manifest.length - added];
+    document.getElementById('race-sel').value = newFile;
+    currentFile = newFile;
+    renderRaceView(races[newFile]);
+  }
+}
+
+document.getElementById('btn-upload').addEventListener('click', openUploadModal);
 
 // ── Claude integration ────────────────────────────────────────────────────
 

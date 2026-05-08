@@ -259,14 +259,59 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" crossorigin="anonymous"></script>
 <script>
 // ── Config ────────────────────────────────────────────────────────────────
-const OPMO_RE = /opmo/i;
+const OPMO_RE  = /opmo/i;
+const KM_TO_MI = 0.621371;
+
+// Track lengths in km keyed by regex against iRacing track name
+const TRACK_LENGTHS_KM = [
+  { re: /n.rburgring/i,                    km: 25.378 },
+  { re: /sarthe|le\s*mans/i,               km: 13.626 },
+  { re: /spa/i,                            km: 7.004  },
+  { re: /sebring/i,                        km: 6.019  },
+  { re: /road\s*america/i,                 km: 6.515  },
+  { re: /bathurst|mount\s*panorama/i,      km: 6.213  },
+  { re: /suzuka/i,                         km: 5.807  },
+  { re: /paul\s*ricard/i,                  km: 5.842  },
+  { re: /monza/i,                          km: 5.793  },
+  { re: /silverstone/i,                    km: 5.891  },
+  { re: /watkins\s*glen/i,                 km: 5.435  },
+  { re: /daytona/i,                        km: 5.730  },
+  { re: /cota|circuit\s*of\s*the\s*americas/i, km: 5.513 },
+  { re: /virginia|vir\b/i,                 km: 5.264  },
+  { re: /mugello/i,                        km: 5.245  },
+  { re: /fuji/i,                           km: 4.563  },
+  { re: /hockenheim/i,                     km: 4.574  },
+  { re: /imola/i,                          km: 4.909  },
+  { re: /portimao|algarve/i,               km: 4.653  },
+  { re: /barcelona|catalunya/i,            km: 4.655  },
+  { re: /red\s*bull\s*ring|spielberg/i,    km: 4.318  },
+  { re: /zandvoort/i,                      km: 4.259  },
+  { re: /interlagos|s.o\s*paulo/i,         km: 4.309  },
+  { re: /kyalami/i,                        km: 4.522  },
+  { re: /indianapolis/i,                   km: 4.192  },
+  { re: /brands\s*hatch.*gp/i,             km: 3.916  },
+  { re: /brands\s*hatch/i,                 km: 3.702  },
+  { re: /okayama/i,                        km: 3.703  },
+  { re: /donington/i,                      km: 3.998  },
+  { re: /oulton/i,                         km: 2.692  },
+  { re: /laguna\s*seca/i,                  km: 3.602  },
+  { re: /lime\s*rock/i,                    km: 2.415  },
+];
+
+function lookupTrackKm(trackName) {
+  for (const { re, km } of TRACK_LENGTHS_KM) {
+    if (re.test(trackName)) return km;
+  }
+  return null;
+}
 
 // ── State ─────────────────────────────────────────────────────────────────
-let races      = {};   // filename → {meta, teams}
-let manifest   = [];
-let currentFile = null;
-let opmoOnly   = false;
-let showHistory = false;
+let races        = {};   // filename → {meta, teams}
+let manifest     = [];
+let currentFile  = null;
+let opmoOnly     = false;
+let showHistory  = false;
+let trackLengthOverrides = {};  // filename → km (user-overridden)
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function parseTime(s) {
@@ -286,6 +331,18 @@ function fmtTime(sec) {
 }
 
 function safeId(tid) { return 't' + String(tid).replace(/\D/g, ''); }
+
+function getTrackKm(filename) {
+  if (trackLengthOverrides[filename] != null) return trackLengthOverrides[filename];
+  const track = races[filename]?.meta['Track'] || '';
+  return lookupTrackKm(track);
+}
+
+function fmtDist(laps, km) {
+  if (!km || !laps) return '—';
+  const miles = laps * km * KM_TO_MI;
+  return `${miles.toFixed(1)} mi`;
+}
 
 function posBadge(pos, isOpmo) {
   const p = parseInt(pos);
@@ -369,6 +426,12 @@ function renderMeta(data) {
   const entries = data.teams.length;
   const opmoCount = data.teams.filter(t => OPMO_RE.test(t.summary['Name'])).length;
 
+  const detectedKm = lookupTrackKm(m['Track'] || '');
+  const activeKm   = getTrackKm(currentFile);
+  const kmVal      = activeKm != null ? activeKm : '';
+  const miVal      = activeKm != null ? (activeKm * KM_TO_MI).toFixed(3) : '';
+  const unknown    = activeKm == null;
+
   document.getElementById('meta-bar').innerHTML = `
     <div class="card"><div class="lbl">Track</div><div class="val sm">${track}</div></div>
     <div class="card"><div class="lbl">Date</div><div class="val sm">${date}</div></div>
@@ -376,7 +439,35 @@ function renderMeta(data) {
     <div class="card"><div class="lbl">SoF</div><div class="val">${sof}</div></div>
     <div class="card"><div class="lbl">Teams</div><div class="val">${entries}</div></div>
     ${opmoCount ? `<div class="card"><div class="lbl">OpMo Entries</div><div class="val" style="color:var(--opmo-hi)">${opmoCount}</div></div>` : ''}
+    <div class="card" style="min-width:180px">
+      <div class="lbl">Track Length${unknown ? ' <span style="color:var(--red)">⚠ unknown</span>' : ''}</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+        <input id="tl-input" type="number" step="0.001" min="0.1" max="30"
+          value="${kmVal}" placeholder="mi/lap"
+          style="width:72px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:13px;font-weight:600"
+          title="Enter track length in miles per lap" />
+        <span style="font-size:12px;color:var(--muted)">mi/lap</span>
+        <button onclick="applyTrackLength()" style="background:var(--opmo-hi);color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer">Set</button>
+        ${detectedKm && unknown === false && trackLengthOverrides[currentFile] != null
+          ? `<button onclick="resetTrackLength()" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;text-decoration:underline">reset</button>`
+          : ''}
+      </div>
+      ${miVal ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${(kmVal * 1).toFixed(3)} km/lap</div>` : ''}
+    </div>
   `;
+}
+
+function applyTrackLength() {
+  const input = document.getElementById('tl-input');
+  const mi = parseFloat(input.value);
+  if (isNaN(mi) || mi <= 0) return;
+  trackLengthOverrides[currentFile] = mi / KM_TO_MI;  // store internally as km
+  if (races[currentFile]) renderRaceView(races[currentFile]);
+}
+
+function resetTrackLength() {
+  delete trackLengthOverrides[currentFile];
+  if (races[currentFile]) renderRaceView(races[currentFile]);
 }
 
 function renderRaceView(data) {
@@ -390,6 +481,8 @@ function renderRaceView(data) {
     return;
   }
 
+  const trackKm = getTrackKm(currentFile);
+
   let html = `
     <div class="tbl-wrap">
     <table>
@@ -399,6 +492,7 @@ function renderRaceView(data) {
         <th data-col="car">Car</th>
         <th data-col="start">Start</th>
         <th data-col="laps">Laps</th>
+        <th data-col="dist">Distance</th>
         <th data-col="inc">Inc</th>
         <th data-col="best">Best Lap</th>
         <th data-col="avg">Avg Lap</th>
@@ -413,6 +507,7 @@ function renderRaceView(data) {
     const isOpmo = OPMO_RE.test(s['Name']);
     const tClass = `team${isOpmo ? ' opmo' : ''}`;
     const badge = isOpmo ? '<span class="opmo-badge">OpMo</span>' : '';
+    const teamDist = fmtDist(parseInt(s['Laps Comp']), trackKm);
 
     html += `
       <tr class="${tClass}" onclick="toggleTeam('${tid}')">
@@ -421,6 +516,7 @@ function renderRaceView(data) {
         <td class="muted">${s['Car'] || '—'}</td>
         <td class="muted">${s['Start Pos'] || '—'}</td>
         <td>${s['Laps Comp'] || '—'}</td>
+        <td class="muted">${teamDist}</td>
         <td>${s['Inc'] || '0'}</td>
         <td class="tt">${fmtTime(parseTime(s['Fastest Lap Time']))}</td>
         <td class="tt">${fmtTime(parseTime(s['Average Lap Time']))}</td>
@@ -430,6 +526,7 @@ function renderRaceView(data) {
 
     for (const d of team.drivers) {
       const dClass = `driver${isOpmo ? ' opmo' : ''}`;
+      const dDist = fmtDist(parseInt(d['Laps Comp']), trackKm);
       html += `
         <tr class="${dClass}" data-team="${tid}">
           <td></td>
@@ -437,6 +534,7 @@ function renderRaceView(data) {
           <td></td>
           <td class="muted">${d['Start Pos'] || '—'}</td>
           <td>${d['Laps Comp'] || '—'}</td>
+          <td class="muted">${dDist}</td>
           <td>${d['Inc'] || '0'}</td>
           <td class="tt">${fmtTime(parseTime(d['Fastest Lap Time']))}</td>
           <td class="tt">${fmtTime(parseTime(d['Average Lap Time']))}</td>
@@ -474,23 +572,26 @@ function renderHistoryView() {
   const driverMap = new Map(); // name → [{raceLabel, team, finPos, laps, avg, best, inc, iOld, iNew}]
 
   for (const [filename, data] of Object.entries(races)) {
-    const label = raceLabelFrom(data);
+    const label  = raceLabelFrom(data);
+    const trackKm = getTrackKm(filename);
     for (const team of data.teams) {
       if (!OPMO_RE.test(team.summary['Name'])) continue;
       for (const d of team.drivers) {
         const name = d['Name'];
         if (!name) continue;
         if (!driverMap.has(name)) driverMap.set(name, []);
+        const laps = parseInt(d['Laps Comp']) || 0;
         driverMap.get(name).push({
           label,
-          team:   team.summary['Name'],
-          finPos: parseInt(team.summary['Fin Pos']) || 0,
-          laps:   parseInt(d['Laps Comp']) || 0,
-          avg:    parseTime(d['Average Lap Time']),
-          best:   parseTime(d['Fastest Lap Time']),
-          inc:    parseInt(d['Inc']) || 0,
-          iOld:   parseInt(d['Old iRating']),
-          iNew:   parseInt(d['New iRating']),
+          team:    team.summary['Name'],
+          finPos:  parseInt(team.summary['Fin Pos']) || 0,
+          laps,
+          dist:    trackKm ? laps * trackKm * KM_TO_MI : null,
+          avg:     parseTime(d['Average Lap Time']),
+          best:    parseTime(d['Fastest Lap Time']),
+          inc:     parseInt(d['Inc']) || 0,
+          iOld:    parseInt(d['Old iRating']),
+          iNew:    parseInt(d['New iRating']),
         });
       }
     }
@@ -513,6 +614,7 @@ function renderHistoryView() {
         <th>Team</th>
         <th>Fin</th>
         <th>Laps</th>
+        <th>Distance</th>
         <th>Avg Lap</th>
         <th>Best Lap</th>
         <th>Inc</th>
@@ -523,17 +625,18 @@ function renderHistoryView() {
   `;
 
   for (const [name, apps] of entries) {
-    // Sort appearances by date (label sorts alphabetically by track, good enough)
     for (let i = 0; i < apps.length; i++) {
       const a = apps[i];
       const dOld = isNaN(a.iOld) ? null : a.iOld;
       const dNew = isNaN(a.iNew) ? null : a.iNew;
+      const distStr = a.dist != null ? `${a.dist.toFixed(1)} mi` : '—';
       html += `<tr>
         ${i === 0 ? `<td rowspan="${apps.length}" style="font-weight:600; border-right:1px solid var(--border); vertical-align:top; padding-top:10px">${name}</td>` : ''}
         <td class="muted">${a.label}</td>
         <td class="muted">${a.team}</td>
         <td>${posBadge(a.finPos, true)}</td>
         <td>${a.laps}</td>
+        <td class="muted">${distStr}</td>
         <td class="tt">${fmtTime(a.avg)}</td>
         <td class="tt">${fmtTime(a.best)}</td>
         <td>${a.inc}</td>
@@ -541,7 +644,7 @@ function renderHistoryView() {
         <td>${dOld !== null && dNew !== null ? iRatingDelta(dOld, dNew) : '<span class="delta eq">—</span>'}</td>
       </tr>`;
     }
-    html += `<tr class="hist-spacer"><td colspan="10"></td></tr>`;
+    html += `<tr class="hist-spacer"><td colspan="11"></td></tr>`;
   }
 
   html += '</tbody></table></div>';
@@ -634,13 +737,14 @@ function csvCell(v) {
 const EXPORT_HEADERS = [
   'Race Date', 'Track', 'Series', 'SoF',
   'Team', 'Car', 'Fin Pos', 'Start Pos',
-  'Driver', 'Laps Comp', 'Avg Lap Time', 'Best Lap Time',
-  'Fast Lap #', 'Incidents', 'Laps Led',
+  'Driver', 'Laps Comp', 'Distance (mi)', 'Track Length (mi/lap)',
+  'Avg Lap Time', 'Best Lap Time', 'Fast Lap #',
+  'Incidents', 'Laps Led',
   'Old iRating', 'New iRating', 'iRating Delta',
   'Old License', 'New License', 'Points',
 ];
 
-function driverRowCells(meta, teamSummary, driver) {
+function driverRowCells(meta, teamSummary, driver, filename) {
   const s = teamSummary;
   const d = driver;
   const date   = meta['Start Time'] ? new Date(meta['Start Time']).toISOString().slice(0, 10) : '';
@@ -654,10 +758,14 @@ function driverRowCells(meta, teamSummary, driver) {
     ? `${d['Old License Level']}.${d['Old License Sub-Level']}` : '';
   const newLic = (d['New License Level'] && d['New License Sub-Level'])
     ? `${d['New License Level']}.${d['New License Sub-Level']}` : '';
+  const trackKm  = filename ? getTrackKm(filename) : lookupTrackKm(track);
+  const trackMi  = trackKm != null ? (trackKm * KM_TO_MI).toFixed(3) : '';
+  const laps     = parseInt(d['Laps Comp']) || 0;
+  const distMi   = trackKm && laps ? (laps * trackKm * KM_TO_MI).toFixed(1) : '';
   return [
     date, track, series, sof,
     s['Name'], s['Car'], s['Fin Pos'], s['Start Pos'],
-    d['Name'], d['Laps Comp'],
+    d['Name'], d['Laps Comp'], distMi, trackMi,
     fmtTime(parseTime(d['Average Lap Time'])),
     fmtTime(parseTime(d['Fastest Lap Time'])),
     d['Fast Lap#'] || '',
@@ -685,7 +793,7 @@ function buildCSV(filenames) {
     const opmoTeams = teams.filter(t => OPMO_RE.test(t.summary['Name']));
     for (const team of opmoTeams) {
       for (const d of team.drivers) {
-        rows.push(driverRowCells(meta, team.summary, d).map(csvCell).join(','));
+        rows.push(driverRowCells(meta, team.summary, d, f).map(csvCell).join(','));
       }
     }
   }
